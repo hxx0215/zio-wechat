@@ -19,5 +19,8 @@ libraryDependencies ++= Seq(
   "com.softwaremill.sttp.tapir" %% "tapir-sttp-client" % tapirVersion,
   "io.circe" %% "circe-generic" % circeVersion,
   "com.typesafe.akka" %% "akka-http" % "10.2.1",
-  "com.softwaremill.sttp.tapir" %% "tapir-akka-http-server" % tapirVersion
+  "com.softwaremill.sttp.tapir" %% "tapir-akka-http-server" % tapirVersion,
+  "org.scala-lang.modules" %% "scala-xml" % "1.2.0",
+  "com.chuusai" %% "shapeless" % "2.3.3"
+
 )

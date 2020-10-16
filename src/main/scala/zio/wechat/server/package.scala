@@ -11,7 +11,8 @@ package object server {
     ZIO.accessM[WechatAppConfiguration](c => {
       val config = c.get
       val sortedString = Seq(config.token,timestamp,nonce).sorted.mkString
-      val sha1 = MessageDigest.getInstance("SHA-1").digest(sortedString.getBytes).map("%02X" format _).mkString
+      println(s"sortedString: $sortedString")
+      val sha1 = MessageDigest.getInstance("SHA-1").digest(sortedString.getBytes).map("%02x" format _).mkString
       if (signature == sha1){
         IO.succeed(echostr)
       }else{
