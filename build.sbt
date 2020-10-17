@@ -21,6 +21,7 @@ libraryDependencies ++= Seq(
   "com.typesafe.akka" %% "akka-http" % "10.2.1",
   "com.softwaremill.sttp.tapir" %% "tapir-akka-http-server" % tapirVersion,
   "org.scala-lang.modules" %% "scala-xml" % "1.2.0",
-  "com.chuusai" %% "shapeless" % "2.3.3"
+  "com.chuusai" %% "shapeless" % "2.3.3",
+  "org.typelevel" %% "cats-core" % "2.0.0"
 
 )
