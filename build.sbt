@@ -9,6 +9,7 @@ scalaVersion := "2.13.3"
 val zioVersion = "1.0.1"
 val tapirVersion = "0.16.16"
 val circeVersion = "0.13.0"
+val enumeratumVersion = "1.6.1"
 
 libraryDependencies ++= Seq(
   "dev.zio" %% "zio" % zioVersion,
@@ -22,6 +23,8 @@ libraryDependencies ++= Seq(
   "com.softwaremill.sttp.tapir" %% "tapir-akka-http-server" % tapirVersion,
   "org.scala-lang.modules" %% "scala-xml" % "1.2.0",
   "com.chuusai" %% "shapeless" % "2.3.3",
-  "org.typelevel" %% "cats-core" % "2.0.0"
+  "org.typelevel" %% "cats-core" % "2.0.0",
+  "com.beachape" %% "enumeratum" % enumeratumVersion,
+  "com.beachape" %% "enumeratum-circe" % enumeratumVersion
 
 )

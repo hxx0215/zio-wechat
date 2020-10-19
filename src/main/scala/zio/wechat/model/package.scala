@@ -3,10 +3,13 @@ package zio.wechat
 
 import cats.Show
 import cats.implicits._
+import enumeratum._
 import io.circe.{Decoder, Encoder, HCursor, Json}
 import shapeless.syntax.std.tuple._
 import sttp.tapir.Codec.XmlCodec
 import sttp.tapir.{Codec, DecodeResult}
+import io.circe.generic.auto._
+import io.circe.syntax._
 
 import scala.xml._
 
@@ -330,27 +333,38 @@ package object model {
     override def msgType: String = "music"
   }
 
-  case class NewsResponseMessage(toUsername: String, fromUsername: String, createTime: Int, msgId: Long, articleCount: Int, articles: Seq[NewsArticle]) extends WechatResponseMessage{
+  case class NewsResponseMessage(toUsername: String, fromUsername: String, createTime: Int, msgId: Long, articleCount: Int, articles: Seq[NewsArticle]) extends WechatResponseMessage {
     override def extraFieldToXMLs: Seq[Elem] = Seq(
-      <ArticleCount>{articleCount}</ArticleCount>,
+      <ArticleCount>
+        {articleCount}
+      </ArticleCount>,
       <Articles>
-        {
-        articles.map(_.toXML)
-        }
+        {articles.map(_.toXML)}
       </Articles>
     )
 
     override def msgType: String = "news"
   }
 
-  case class NewsArticle(title: String, description: String, picURL: String, url: String){
+  case class NewsArticle(title: String, description: String, picURL: String, url: String) {
+
     import scala.xml.PCData
+
     def toXML: Elem = {
       <item>
-        <Title>{PCData(title)}</Title>,
-        <Description>{PCData(description)}</Description>
-        <PicUrl>{PCData(picURL)}</PicUrl>
-        <Url>{PCData(url)}</Url>
+        <Title>
+          {PCData(title)}
+        </Title>
+        ,
+        <Description>
+          {PCData(description)}
+        </Description>
+        <PicUrl>
+          {PCData(picURL)}
+        </PicUrl>
+        <Url>
+          {PCData(url)}
+        </Url>
       </item>
     }
   }
@@ -387,6 +401,60 @@ package object model {
   case class ViewEvent(toUsername: String, fromUsername: String, createTime: Int, msgId: Long, eventKey: String) extends WechatRequestMessage with WechatEvent {
     override def event: String = "VIEW"
   }
+
+  sealed abstract class QRCodeActionName(override val entryName: String) extends EnumEntry
+
+  object QRCodeActionName extends Enum[QRCodeActionName] {
+    val values = findValues
+
+    case object QRSCENE extends QRCodeActionName("QR_SCENE")
+    case object QRLIMITSTRSCENE extends QRCodeActionName("QR_LIMIT_STR_SCENE")
+  }
+
+  import QRCodeActionName._
+
+  case class TemporaryQRCodeRequest(expireSeconds: Int, actionName: QRCodeActionName, actionInfo: QRCodeActionInfo)
+
+  implicit val temporaryQRCodeRequestEncoder: Encoder[TemporaryQRCodeRequest] = (r: TemporaryQRCodeRequest) => Json.obj(
+    "expire_seconds" -> Json.fromInt(r.expireSeconds),
+    "action_name" -> Json.fromString(r.actionName.toString),
+    "action_info" -> r.actionInfo.asJson
+  )
+  implicit val temporaryQRCodeRequestDecoder: Decoder[TemporaryQRCodeRequest] = (c: HCursor) => for {
+    expireSeconds <- c.downField("expire_seconds").as[Int]
+    actionName <- c.downField("action_name").as[String]
+    actionInfo <- c.downField("action_info").as[QRCodeActionInfo]
+  } yield TemporaryQRCodeRequest(expireSeconds, QRCodeActionName.withName(actionName), actionInfo)
+
+  case class QRCodeActionInfo(scene: QRCodeScene)
+
+  sealed trait QRCodeScene
+
+  case class QRCodeIdScene(scene: Int) extends QRCodeScene
+
+  implicit val qrCodeIdSceneEncoder: Encoder[QRCodeIdScene] = (idScene: QRCodeIdScene) => Json.obj(
+    "scene_id" -> Json.fromInt(idScene.scene)
+  )
+
+  case class QRCodeStringScene(scene: String) extends QRCodeScene
+
+  implicit val qrCodeStringSceneEncoder: Encoder[QRCodeStringScene] = (stringScene: QRCodeStringScene) => Json.obj(
+    "scene_str" -> Json.fromString(stringScene.scene)
+  )
+
+  case class QRCodeResponse(ticket: String, expireSeconds: Int, url: String)
+
+  implicit val qrcodeResponseDecoder: Decoder[QRCodeResponse] = (c: HCursor) => for {
+    ticket <- c.downField("ticket").as[String]
+    expireSeconds <- c.downField("expire_seconds").as[Int]
+    url <- c.downField("url").as[String]
+  } yield QRCodeResponse(ticket, expireSeconds, url)
+
+  implicit val qrcodeResponseEncoder: Encoder[QRCodeResponse] = (r: QRCodeResponse) => Json.obj(
+    "ticket" -> Json.fromString(r.ticket),
+    "expire_seconds" -> Json.fromInt(r.expireSeconds),
+    "url" -> Json.fromString(r.url)
+  )
 
 
 }

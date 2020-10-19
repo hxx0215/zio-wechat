@@ -1,29 +1,39 @@
 package zio.wechat
 
+import io.circe.{Decoder, Encoder}
 import io.circe.parser.decode
 import io.circe.syntax._
 import sttp.tapir._
-import zio.wechat.model.{AccessTokenResponse, ErrorResponse}
+import zio.wechat.model.{AccessTokenResponse, ErrorResponse, QRCodeResponse, TemporaryQRCodeRequest}
+import sttp.tapir.json.circe.jsonBody
 
 package object endpoints {
-  val mapOut: String => Either[ErrorResponse, AccessTokenResponse] = (out: String) => {
-    decode[AccessTokenResponse](out) match {
-      case Right(value) => Right[ErrorResponse, AccessTokenResponse](value)
+  def mapOut[T: Decoder]() = (out: String) =>{
+    decode[T](out) match {
+      case Right(value) => Right[ErrorResponse,T](value)
       case Left(_) =>
         val Right(e) = decode[ErrorResponse](out)
-        Left[ErrorResponse, AccessTokenResponse](e)
+        Left[ErrorResponse, T](e)
     }
   }
+  def mapping[T: Decoder: Encoder]: Mapping[String, Either[ErrorResponse, T]] = Mapping.from(mapOut[T]())({
+    case Right(v) => v.asJson.toString()
+    case Left(v) => v.asJson.toString()
+  })
+
+
   val accessToken = endpoint.get.in("cgi-bin" / "token")
     .in(query[String]("grant_type")).description("获取access_token填写client_credential")
     .in(query[String]("appid")).description("第三方用户唯一凭证")
     .in(query[String]("secret")).description("第三方用户唯一凭证密钥，即appsecret")
     .out(stringBody).errorOut(stringBody)
-    .mapOut(mapOut)({
-      case Right(v) => v.asJson.toString()
-      case Left(v) => v.asJson.toString()
-    })
+    .mapOut(mapping[AccessTokenResponse])
 
+  val temporaryQRCode = endpoint.post.in("cgi-bin" / "qrcode" / "create")
+    .in(query[String]("access_token"))
+    .in(jsonBody[TemporaryQRCodeRequest])
+    .out(stringBody).errorOut(stringBody)
+    .mapOut(mapping[QRCodeResponse])
 
   class HookEndpoint[T](i: EndpointInput[T]) {
     private val baseEndpoint = endpoint.in(i)
@@ -37,5 +47,6 @@ package object endpoints {
       baseEndpoint.post.in(xmlBody[WechatRequestMessage]).out(xmlBody[WechatResponseMessage]).errorOut(stringBody)
 
   }
+
 
 }
