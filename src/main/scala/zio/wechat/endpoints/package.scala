@@ -3,9 +3,7 @@ package zio.wechat
 import io.circe.parser.decode
 import io.circe.syntax._
 import sttp.tapir._
-import zio.wechat.model.{AccessTokenResponse, ErrorResponse, ImageRequestMessage, TextRequestMessage, WechatRequestMessage, WechatResponseMessage}
-
-import scala.xml.XML
+import zio.wechat.model.{AccessTokenResponse, ErrorResponse}
 
 package object endpoints {
   val mapOut: String => Either[ErrorResponse, AccessTokenResponse] = (out: String) => {

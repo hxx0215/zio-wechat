@@ -1,14 +1,14 @@
 package zio.wechat
 
 
-import cats.{Monoid, Show}
+import cats.Show
 import cats.implicits._
 import io.circe.{Decoder, Encoder, HCursor, Json}
+import shapeless.syntax.std.tuple._
+import sttp.tapir.Codec.XmlCodec
 import sttp.tapir.{Codec, DecodeResult}
 
 import scala.xml._
-import shapeless.syntax.std.tuple._
-import sttp.tapir.Codec.XmlCodec
 
 
 package object model {
@@ -50,12 +50,16 @@ package object model {
 
     def msgType: String
 
-    def extraFieldToXMLs: Seq[Elem]
-
     def msgId: Long
   }
 
-  case object EmptyMessage extends WechatMessage {
+  sealed trait WechatRequestMessage extends WechatMessage
+
+  sealed trait WechatResponseMessage extends WechatMessage {
+    def extraFieldToXMLs: Seq[Elem]
+  }
+
+  case object EmptyMessage extends WechatResponseMessage {
     def extraFieldToXMLs: Seq[Elem] = Seq.empty
 
     override def msgType: String = ""
@@ -80,7 +84,7 @@ package object model {
       )
     }
 
-    def fromString(xmlString: String): DecodeResult[WechatMessage] = {
+    def fromString(xmlString: String): DecodeResult[WechatRequestMessage] = {
       val root = XML.loadString(xmlString)
       (root \ "MsgType").text match {
         case "text" => DecodeResult.Value {
@@ -92,11 +96,11 @@ package object model {
           )
         case "voice" =>
           DecodeResult.Value(
-            VoiceMessage tupled baseMessage(root) :+ (root \ "Format").text :+ (root \ "MediaId").text :+ (root \ "Recognition").headOption.map(_.text)
+            VoiceRequestMessage tupled baseMessage(root) :+ (root \ "Format").text :+ (root \ "MediaId").text :+ (root \ "Recognition").headOption.map(_.text)
           )
         case "video" =>
           DecodeResult.Value(
-            VideoMessage tupled baseMessage(root) :+ (root \ "MediaId").text :+ (root \ "ThumbMediaId").text
+            VideoRequestMessage tupled baseMessage(root) :+ (root \ "MediaId").text :+ (root \ "ThumbMediaId").text
           )
         case "shortvideo" =>
           DecodeResult.Value(
@@ -114,11 +118,27 @@ package object model {
           (root \ "Event").text match {
             case "subscribe" =>
               DecodeResult.Value(
-                SubscribeEvent tupled baseMessage(root)
+                SubscribeEvent tupled baseMessage(root) :+ (root \ "EventKey").text :+ (root \ "Ticket").text
               )
             case "unsubscribe" =>
               DecodeResult.Value(
                 UnsubscribeEvent tupled baseMessage(root)
+              )
+            case "SCAN" =>
+              DecodeResult.Value(
+                ScanEvent tupled baseMessage(root) :+ (root \ "EventKey").text :+ (root \ "Ticket").text
+              )
+            case "LOCATION" =>
+              DecodeResult.Value(
+                LocationEvent tupled baseMessage(root) :+ (root \ "Latitude").text.toDouble :+ (root \ "Longitude").text.toDouble :+ (root \ "Precision").text.toDouble
+              )
+            case "CLICK" =>
+              DecodeResult.Value(
+                ClickEvent tupled baseMessage(root) :+ (root \ "EventKey").text
+              )
+            case "VIEW" =>
+              DecodeResult.Value(
+                ViewEvent tupled baseMessage(root) :+ (root \ "EventKey").text
               )
           }
         case _ => DecodeResult.Missing
@@ -126,7 +146,7 @@ package object model {
     }
   }
 
-  implicit val showWechatMessage: Show[WechatMessage] = Show.show {
+  implicit val showWechatMessage: Show[WechatResponseMessage] = Show.show {
     case EmptyMessage => "success"
     case message =>
       val base =
@@ -151,120 +171,221 @@ package object model {
       base.copy(child = base.child ++ message.extraFieldToXMLs).toString()
   }
 
-  implicit val wechatMessage: XmlCodec[WechatMessage] = Codec.xml(WechatMessage.fromString)(_.show)
+  implicit val wechatRequestMessage: XmlCodec[WechatRequestMessage] = Codec.xml(str => WechatMessage.fromString(str))(_ => "")
+  implicit val wechatResponseMessage: XmlCodec[WechatResponseMessage] = Codec.xml(_ => DecodeResult.Missing)(_.show)
 
-  case class TextMessage(toUsername: String, fromUsername: String, createTime: Int, msgId: Long, content: String) extends WechatMessage {
+  case class TextMessage(toUsername: String, fromUsername: String, createTime: Int, msgId: Long, content: String) extends WechatRequestMessage with WechatResponseMessage {
     override val msgType: String = "text"
 
-    def extraFieldToXMLs = Seq(
+    override def extraFieldToXMLs = Seq(
       <Content>
         {scala.xml.PCData(content)}
       </Content>
     )
   }
 
-  case class ImageMessage(toUsername: String, fromUsername: String, createTime: Int, msgId: Long, picUrl: String, mediaId: String) extends WechatMessage {
+  case class ImageMessage(toUsername: String, fromUsername: String, createTime: Int, msgId: Long, picUrl: String, mediaId: String) extends WechatRequestMessage with WechatResponseMessage {
     override val msgType: String = "image"
 
     def extraFieldToXMLs = Seq(
-      <PicUrl>
-        {scala.xml.PCData(picUrl)}
-      </PicUrl>,
-      <MediaId>
-        {scala.xml.PCData(mediaId)}
-      </MediaId>
+      <Image>
+        <MediaId>
+          {scala.xml.PCData(mediaId)}
+        </MediaId>
+      </Image>
     )
   }
 
-  case class VoiceMessage(toUsername: String, fromUsername: String, createTime: Int, msgId: Long, format: String, mediaId: String, recognition: Option[String] = None) extends WechatMessage {
+  case class VoiceRequestMessage(toUsername: String, fromUsername: String, createTime: Int, msgId: Long, format: String, mediaId: String, recognition: Option[String] = None) extends WechatRequestMessage {
     override val msgType: String = "voice"
 
-    def extraFieldToXMLs: Seq[Elem] = Seq(
-      <MediaId>
-        {scala.xml.PCData(mediaId)}
-      </MediaId>,
-      <Format>
-        {scala.xml.PCData(format)}
-      </Format>
-    ) ++ recognition.map(r => <Recognition>{scala.xml.PCData(r)}</Recognition>)
-
+    //    def extraFieldToXMLs: Seq[Elem] = Seq(
+    //      <MediaId>
+    //        {scala.xml.PCData(mediaId)}
+    //      </MediaId>,
+    //      <Format>
+    //        {scala.xml.PCData(format)}
+    //      </Format>
+    //    ) ++ recognition.map(r => <Recognition>
+    //      {scala.xml.PCData(r)}
+    //    </Recognition>)
   }
 
-  case class VideoMessage(toUsername: String, fromUsername: String, createTime: Int, msgId: Long, mediaId: String, thumbMediaId: String) extends WechatMessage {
+  case class VoiceResponseMessage(toUsername: String, fromUsername: String, createTime: Int, msgId: Long, mediaId: String) extends WechatResponseMessage {
+    override def extraFieldToXMLs: Seq[Elem] = Seq(
+      <Voice>
+        <MediaId>
+          {scala.xml.PCData(mediaId)}
+        </MediaId>
+      </Voice>
+    )
+
+    override def msgType: String = "voice"
+  }
+
+  case class VideoRequestMessage(toUsername: String, fromUsername: String, createTime: Int, msgId: Long, mediaId: String, thumbMediaId: String) extends WechatRequestMessage {
     override val msgType: String = "video"
 
-    def extraFieldToXMLs = Seq(
-      <MediaId>
-        {scala.xml.PCData(mediaId)}
-      </MediaId>,
-      <ThumbMediaId>
-        {scala.xml.PCData(thumbMediaId)}
-      </ThumbMediaId>
-    )
+    //    def extraFieldToXMLs = Seq(
+    //      <MediaId>
+    //        {scala.xml.PCData(mediaId)}
+    //      </MediaId>,
+    //      <ThumbMediaId>
+    //        {scala.xml.PCData(thumbMediaId)}
+    //      </ThumbMediaId>
+    //    )
   }
 
-  case class ShortVideoMessage(toUsername: String, fromUsername: String, createTime: Int, msgId: Long, mediaId: String, thumbMediaId: String) extends WechatMessage {
+  case class VideoResponseMessage(toUsername: String, fromUsername: String, createTime: Int, msgId: Long, mediaId: String, title: String, description: String) extends WechatResponseMessage {
+    override def extraFieldToXMLs: Seq[Elem] = Seq(
+      <Video>
+        <MediaId>
+          {scala.xml.PCData(mediaId)}
+        </MediaId>
+        <Title>
+          {scala.xml.PCData(title)}
+        </Title>
+        <Description>
+          {scala.xml.PCData(description)}
+        </Description>
+      </Video>
+    )
+
+    override def msgType: String = "video"
+  }
+
+  case class ShortVideoMessage(toUsername: String, fromUsername: String, createTime: Int, msgId: Long, mediaId: String, thumbMediaId: String) extends WechatRequestMessage {
     override val msgType: String = "shortvideo"
 
-    def extraFieldToXMLs = Seq(
-      <MediaId>
-        {scala.xml.PCData(mediaId)}
-      </MediaId>,
-      <ThumbMediaId>
-        {scala.xml.PCData(thumbMediaId)}
-      </ThumbMediaId>
-    )
+    //    def extraFieldToXMLs = Seq(
+    //      <MediaId>
+    //        {scala.xml.PCData(mediaId)}
+    //      </MediaId>,
+    //      <ThumbMediaId>
+    //        {scala.xml.PCData(thumbMediaId)}
+    //      </ThumbMediaId>
+    //    )
   }
 
-  case class LocationMessage(toUsername: String, fromUsername: String, createTime: Int, msgId: Long, locationX: Double, locationY: Double, scale: Double, label: String) extends WechatMessage {
+  case class LocationMessage(toUsername: String, fromUsername: String, createTime: Int, msgId: Long, locationX: Double, locationY: Double, scale: Double, label: String) extends WechatRequestMessage {
     override val msgType: String = "location"
 
-    def extraFieldToXMLs = Seq(
-      <Location_X>
-        {locationX}
-      </Location_X>,
-      <Location_Y>
-        {locationY}
-      </Location_Y>,
-      <Scale>
-        {scale}
-      </Scale>,
-      <Label>
-        {scala.xml.PCData(label)}
-      </Label>
-    )
+    //    def extraFieldToXMLs = Seq(
+    //      <Location_X>
+    //        {locationX}
+    //      </Location_X>,
+    //      <Location_Y>
+    //        {locationY}
+    //      </Location_Y>,
+    //      <Scale>
+    //        {scale}
+    //      </Scale>,
+    //      <Label>
+    //        {scala.xml.PCData(label)}
+    //      </Label>
+    //    )
   }
 
 
-  case class LinkMessage(toUsername: String, fromUsername: String, createTime: Int, msgId: Long, title: String, description: String, url: String) extends WechatMessage {
+  case class LinkMessage(toUsername: String, fromUsername: String, createTime: Int, msgId: Long, title: String, description: String, url: String) extends WechatRequestMessage {
     override val msgType: String = "link"
 
-    def extraFieldToXMLs = Seq(
-      <Title>
-        {scala.xml.PCData(title)}
-      </Title>,
-      <Description>
-        {scala.xml.PCData(description)}
-      </Description>,
-      <Url>
-        {scala.xml.PCData(url)}
-      </Url>
-    )
+    //    def extraFieldToXMLs = Seq(
+    //      <Title>
+    //        {scala.xml.PCData(title)}
+    //      </Title>,
+    //      <Description>
+    //        {scala.xml.PCData(description)}
+    //      </Description>,
+    //      <Url>
+    //        {scala.xml.PCData(url)}
+    //      </Url>
+    //    )
   }
 
+  case class MusicResponseMessage(toUsername: String, fromUsername: String, createTime: Int, msgId: Long, title: String, description: String, musicURL: String, hqMusicURL: String, thumbMediaId: String) extends WechatResponseMessage {
 
-  trait WechatEvent extends WechatMessage {
+    import scala.xml.PCData
+
+    override def extraFieldToXMLs: Seq[Elem] = Seq(
+      <Music>
+        <Title>
+          {PCData(title)}
+        </Title>
+        <Description>
+          {PCData(description)}
+        </Description>
+        <MusicUrl>
+          {PCData(musicURL)}
+        </MusicUrl>
+        <HQMusicUrl>
+          {PCData(hqMusicURL)}
+        </HQMusicUrl>
+        <ThumbMediaId>
+          {PCData(thumbMediaId)}
+        </ThumbMediaId>
+      </Music>
+    )
+
+    override def msgType: String = "music"
+  }
+
+  case class NewsResponseMessage(toUsername: String, fromUsername: String, createTime: Int, msgId: Long, articleCount: Int, articles: Seq[NewsArticle]) extends WechatResponseMessage{
+    override def extraFieldToXMLs: Seq[Elem] = Seq(
+      <ArticleCount>{articleCount}</ArticleCount>,
+      <Articles>
+        {
+        articles.map(_.toXML)
+        }
+      </Articles>
+    )
+
+    override def msgType: String = "news"
+  }
+
+  case class NewsArticle(title: String, description: String, picURL: String, url: String){
+    import scala.xml.PCData
+    def toXML: Elem = {
+      <item>
+        <Title>{PCData(title)}</Title>,
+        <Description>{PCData(description)}</Description>
+        <PicUrl>{PCData(picURL)}</PicUrl>
+        <Url>{PCData(url)}</Url>
+      </item>
+    }
+  }
+
+  trait WechatEvent {
     def event: String
+
     def extraFieldToXMLs: Seq[Elem] = Seq.empty
+
     def msgType: String = "event"
   }
 
-  case class SubscribeEvent(toUsername: String, fromUsername: String, createTime: Int, msgId: Long) extends WechatEvent {
+  case class SubscribeEvent(toUsername: String, fromUsername: String, createTime: Int, msgId: Long, eventKey: String, ticket: String) extends WechatRequestMessage with WechatEvent {
     override def event: String = "subscribe"
   }
 
-  case class UnsubscribeEvent(toUsername: String, fromUsername: String, createTime: Int, msgId: Long) extends WechatEvent {
+  case class UnsubscribeEvent(toUsername: String, fromUsername: String, createTime: Int, msgId: Long) extends WechatRequestMessage with WechatEvent {
     override def event: String = "unsubscribe"
+  }
+
+  case class ScanEvent(toUsername: String, fromUsername: String, createTime: Int, msgId: Long, eventKey: String, ticket: String) extends WechatRequestMessage with WechatEvent {
+    override def event: String = "SCAN"
+  }
+
+  case class LocationEvent(toUsername: String, fromUsername: String, createTime: Int, msgId: Long, latitude: Double, longitude: Double, precision: Double) extends WechatRequestMessage with WechatEvent {
+    override def event: String = "LOCATION"
+  }
+
+  //自定义菜单取消息
+  case class ClickEvent(toUsername: String, fromUsername: String, createTime: Int, msgId: Long, eventKey: String) extends WechatRequestMessage with WechatEvent {
+    override def event: String = "CLICK"
+  }
+
+  case class ViewEvent(toUsername: String, fromUsername: String, createTime: Int, msgId: Long, eventKey: String) extends WechatRequestMessage with WechatEvent {
+    override def event: String = "VIEW"
   }
 
 
