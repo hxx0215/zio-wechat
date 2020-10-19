@@ -8,15 +8,16 @@ import zio.wechat.model.{AccessTokenResponse, ErrorResponse, QRCodeResponse, Tem
 import sttp.tapir.json.circe.jsonBody
 
 package object endpoints {
-  def mapOut[T: Decoder]() = (out: String) =>{
+  def mapOut[T: Decoder]() = (out: String) => {
     decode[T](out) match {
-      case Right(value) => Right[ErrorResponse,T](value)
+      case Right(value) => Right[ErrorResponse, T](value)
       case Left(_) =>
         val Right(e) = decode[ErrorResponse](out)
         Left[ErrorResponse, T](e)
     }
   }
-  def mapping[T: Decoder: Encoder]: Mapping[String, Either[ErrorResponse, T]] = Mapping.from(mapOut[T]())({
+
+  def mapping[T: Decoder : Encoder]: Mapping[String, Either[ErrorResponse, T]] = Mapping.from(mapOut[T]())({
     case Right(v) => v.asJson.toString()
     case Left(v) => v.asJson.toString()
   })
@@ -34,6 +35,9 @@ package object endpoints {
     .in(jsonBody[TemporaryQRCodeRequest])
     .out(stringBody).errorOut(stringBody)
     .mapOut(mapping[QRCodeResponse])
+
+  val showQRCode = endpoint.get.in("cgi-bin" / "showqrcode").in(query[String]("ticket"))
+    .out(fileBody).errorOut(stringBody)
 
   class HookEndpoint[T](i: EndpointInput[T]) {
     private val baseEndpoint = endpoint.in(i)

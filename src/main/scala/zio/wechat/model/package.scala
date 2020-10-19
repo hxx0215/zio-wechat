@@ -411,20 +411,19 @@ package object model {
     case object QRLIMITSTRSCENE extends QRCodeActionName("QR_LIMIT_STR_SCENE")
   }
 
-  import QRCodeActionName._
-
-  case class TemporaryQRCodeRequest(expireSeconds: Int, actionName: QRCodeActionName, actionInfo: QRCodeActionInfo)
+  case class TemporaryQRCodeRequest(expireSeconds: Int, actionInfo: QRCodeActionInfo){
+    val actionName: QRCodeActionName = QRCodeActionName.QRSCENE
+  }
 
   implicit val temporaryQRCodeRequestEncoder: Encoder[TemporaryQRCodeRequest] = (r: TemporaryQRCodeRequest) => Json.obj(
     "expire_seconds" -> Json.fromInt(r.expireSeconds),
-    "action_name" -> Json.fromString(r.actionName.toString),
+    "action_name" -> Json.fromString(r.actionName.entryName),
     "action_info" -> r.actionInfo.asJson
   )
   implicit val temporaryQRCodeRequestDecoder: Decoder[TemporaryQRCodeRequest] = (c: HCursor) => for {
     expireSeconds <- c.downField("expire_seconds").as[Int]
-    actionName <- c.downField("action_name").as[String]
     actionInfo <- c.downField("action_info").as[QRCodeActionInfo]
-  } yield TemporaryQRCodeRequest(expireSeconds, QRCodeActionName.withName(actionName), actionInfo)
+  } yield TemporaryQRCodeRequest(expireSeconds, actionInfo)
 
   case class QRCodeActionInfo(scene: QRCodeScene)
 
