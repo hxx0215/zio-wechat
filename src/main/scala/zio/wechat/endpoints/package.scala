@@ -30,13 +30,13 @@ package object endpoints {
     .out(stringBody).errorOut(stringBody)
     .mapOut(mapping[AccessTokenResponse])
 
-  def generateQRCodeRequest[T <: QRCodeRequest : Encoder : Decoder: Schema] = endpoint.post.in("cgi-bin" / "qrcode" / "create")
+  def generateQRCodeEndpoint[T <: QRCodeRequest : Encoder : Decoder: Schema: Validator] = endpoint.post.in("cgi-bin" / "qrcode" / "create")
     .in(query[String]("access_token"))
     .in(jsonBody[T])
     .out(stringBody).errorOut(stringBody)
     .mapOut(mapping[QRCodeResponse])
 
-  val showQRCode = endpoint.get.in("cgi-bin" / "showqrcode").in(query[String]("ticket"))
+  val showQRCodeEndpoint = endpoint.get.in("cgi-bin" / "showqrcode").in(query[String]("ticket"))
     .out(fileBody).errorOut(stringBody)
 
   class HookEndpoint[T](i: EndpointInput[T]) {
