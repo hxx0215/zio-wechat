@@ -4,7 +4,7 @@ import io.circe.{Decoder, Encoder}
 import io.circe.parser.decode
 import io.circe.syntax._
 import sttp.tapir._
-import zio.wechat.model.{AccessTokenResponse, ErrorResponse, QRCodeResponse, TemporaryQRCodeRequest}
+import zio.wechat.model.{AccessTokenResponse, ErrorResponse, QRCodeRequest, QRCodeResponse}
 import sttp.tapir.json.circe.jsonBody
 
 package object endpoints {
@@ -30,9 +30,9 @@ package object endpoints {
     .out(stringBody).errorOut(stringBody)
     .mapOut(mapping[AccessTokenResponse])
 
-  val temporaryQRCode = endpoint.post.in("cgi-bin" / "qrcode" / "create")
+  def generateQRCodeRequest[T <: QRCodeRequest : Encoder : Decoder: Schema] = endpoint.post.in("cgi-bin" / "qrcode" / "create")
     .in(query[String]("access_token"))
-    .in(jsonBody[TemporaryQRCodeRequest])
+    .in(jsonBody[T])
     .out(stringBody).errorOut(stringBody)
     .mapOut(mapping[QRCodeResponse])
 

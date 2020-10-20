@@ -404,16 +404,32 @@ package object model {
 
   sealed abstract class QRCodeActionName(override val entryName: String) extends EnumEntry
 
+  sealed abstract class QRCodeLimitActionName(override val entryName: String) extends EnumEntry
+
   object QRCodeActionName extends Enum[QRCodeActionName] {
     val values = findValues
 
     case object QRSCENE extends QRCodeActionName("QR_SCENE")
-    case object QRLIMITSTRSCENE extends QRCodeActionName("QR_LIMIT_STR_SCENE")
+
+    case object QRSTRSCENE extends QRCodeActionName("QR_STR_SCENE")
+
+
   }
 
-  case class TemporaryQRCodeRequest(expireSeconds: Int, actionInfo: QRCodeActionInfo){
-    val actionName: QRCodeActionName = QRCodeActionName.QRSCENE
+  object QRCodeLimitActionName extends Enum[QRCodeLimitActionName] {
+    val values = findValues
+
+    case object QRLIMITSCENE extends QRCodeActionName("QR_LIMIT_SCENE")
+
+    case object QRLIMITSTRSCENE extends QRCodeActionName("QR_LIMIT_STR_SCENE")
+
   }
+
+  sealed trait QRCodeRequest
+
+  case class TemporaryQRCodeRequest(expireSeconds: Int, actionName: QRCodeActionName, actionInfo: QRCodeActionInfo) extends QRCodeRequest
+
+  case class PermanentQRCodeRequest(actionName: QRCodeLimitActionName, actionInfo: QRCodeActionInfo) extends QRCodeRequest
 
   implicit val temporaryQRCodeRequestEncoder: Encoder[TemporaryQRCodeRequest] = (r: TemporaryQRCodeRequest) => Json.obj(
     "expire_seconds" -> Json.fromInt(r.expireSeconds),
@@ -422,8 +438,19 @@ package object model {
   )
   implicit val temporaryQRCodeRequestDecoder: Decoder[TemporaryQRCodeRequest] = (c: HCursor) => for {
     expireSeconds <- c.downField("expire_seconds").as[Int]
+    actionName <- c.downField("action_name").as[String]
     actionInfo <- c.downField("action_info").as[QRCodeActionInfo]
-  } yield TemporaryQRCodeRequest(expireSeconds, actionInfo)
+  } yield TemporaryQRCodeRequest(expireSeconds, QRCodeActionName.withName(actionName), actionInfo)
+
+  implicit val permanentQRCodeRequestEncoder: Encoder[PermanentQRCodeRequest] = (r: PermanentQRCodeRequest) => Json.obj(
+    "action_name" -> Json.fromString(r.actionName.entryName),
+    "action_info" -> r.actionInfo.asJson
+  )
+
+  implicit val permanentQRCodeRequestDecoder: Decoder[PermanentQRCodeRequest] = (c: HCursor) => for {
+    actionName <- c.downField("action_name").as[String]
+    actionInfo <- c.downField("action_info").as[QRCodeActionInfo]
+  } yield PermanentQRCodeRequest(QRCodeLimitActionName.withName(actionName), actionInfo)
 
   case class QRCodeActionInfo(scene: QRCodeScene)
 
