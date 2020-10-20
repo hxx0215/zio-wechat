@@ -8,36 +8,14 @@ import sttp.tapir.Codec.XmlCodec
 import sttp.tapir.{Codec, DecodeResult}
 import io.circe.generic.auto._
 import io.circe.syntax._
-
+import io.circe.generic.extras._
 
 
 package object model {
 
-  case class ErrorResponse(code: Int, message: String)
+  @ConfiguredJsonCodec case class ErrorResponse(@JsonKey("errcode") code: Int, @JsonKey("errmsg") message: String)
 
-  implicit val encodeErrorResponse: Encoder[ErrorResponse] = (e: ErrorResponse) => Json.obj(
-    ("errcode", Json.fromInt(e.code)),
-    ("errmsg", Json.fromString(e.message))
-  )
-
-  implicit val decodeErrorResponse: Decoder[ErrorResponse] = (c: HCursor) => for {
-    code <- c.downField("errcode").as[Int]
-    message <- c.downField("errmsg").as[String]
-  } yield ErrorResponse(code, message)
-
-  case class AccessTokenResponse(accessToken: String, expiresIn: Int)
-
-  implicit val encodeAccessTokenResponse: Encoder[AccessTokenResponse] = (a: AccessTokenResponse) => Json.obj(
-    ("access_token", Json.fromString(a.accessToken)),
-    ("expires_in", Json.fromInt(a.expiresIn))
-  )
-
-  implicit val decodeAccessTokenResponse: Decoder[AccessTokenResponse] = (c: HCursor) => for {
-    accessToken <- c.downField("access_token").as[String]
-    expiresIn <- c.downField("expires_in").as[Int]
-  } yield {
-    AccessTokenResponse(accessToken, expiresIn)
-  }
+  @ConfiguredJsonCodec case class AccessTokenResponse(@JsonKey("access_token")accessToken: String,@JsonKey("expires_in") expiresIn: Int)
 
   case class WechatAppConfig(appId: String, appSecret: String, token: String, aesKey: String)
 
@@ -70,7 +48,6 @@ package object model {
   implicit val wechatResponseMessage: XmlCodec[WechatResponseMessage] = Codec.xml(_ => DecodeResult.Missing)(_.show)
 
 
-
   implicit val temporaryQRCodeRequestEncoder: Encoder[TemporaryQRCodeRequest] = (r: TemporaryQRCodeRequest) => Json.obj(
     "expire_seconds" -> Json.fromInt(r.expireSeconds),
     "action_name" -> Json.fromString(r.actionName.entryName),
@@ -92,12 +69,6 @@ package object model {
     actionInfo <- c.downField("action_info").as[QRCodeActionInfo]
   } yield PermanentQRCodeRequest(QRCodeLimitActionName.withName(actionName), actionInfo)
 
-  implicit val qrCodeIdSceneEncoder: Encoder[QRCodeIdScene] = (idScene: QRCodeIdScene) => Json.obj(
-    "scene_id" -> Json.fromInt(idScene.scene)
-  )
-  implicit val qrCodeStringSceneEncoder: Encoder[QRCodeStringScene] = (stringScene: QRCodeStringScene) => Json.obj(
-    "scene_str" -> Json.fromString(stringScene.scene)
-  )
   implicit val qrcodeResponseDecoder: Decoder[QRCodeResponse] = (c: HCursor) => for {
     ticket <- c.downField("ticket").as[String]
     expireSeconds <- c.downField("expire_seconds").as[Int]
@@ -109,4 +80,15 @@ package object model {
     "expire_seconds" -> Json.fromInt(r.expireSeconds),
     "url" -> Json.fromString(r.url)
   )
+
+  implicit val config: Configuration = Configuration.default
+
+  sealed trait Menu {
+    def name: String
+  }
+
+  case class SubMenu(name: String, subButton: Seq[Menu]) extends Menu
+
+  @ConfiguredJsonCodec case class ConcreteMenu(name: String, `type`: MenuType, key: Option[String], url: Option[String], @JsonKey("media_id") mediaId: Option[String], @JsonKey("appid") appId: Option[String], @JsonKey("pagepath") pagePath: Option[String]) extends Menu
+
 }

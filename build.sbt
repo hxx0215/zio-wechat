@@ -19,6 +19,7 @@ libraryDependencies ++= Seq(
   "com.softwaremill.sttp.tapir" %% "tapir-openapi-circe-yaml" % tapirVersion,
   "com.softwaremill.sttp.tapir" %% "tapir-sttp-client" % tapirVersion,
   "io.circe" %% "circe-generic" % circeVersion,
+  "io.circe" %% "circe-generic-extras" % circeVersion,
   "com.typesafe.akka" %% "akka-http" % "10.2.1",
   "com.softwaremill.sttp.tapir" %% "tapir-akka-http-server" % tapirVersion,
   "org.scala-lang.modules" %% "scala-xml" % "1.2.0",
@@ -28,3 +29,4 @@ libraryDependencies ++= Seq(
   "com.beachape" %% "enumeratum-circe" % enumeratumVersion
 
 )
+scalacOptions += "-Ymacro-annotations"
