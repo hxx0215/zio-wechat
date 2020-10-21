@@ -6,7 +6,6 @@ import akka.http.scaladsl.server.Route
 import sttp.tapir.server.akkahttp._
 import zio.Runtime
 import zio.internal.Executor
-import zio.wechat.{configLayer, model}
 import zio.wechat.model.{ClickEvent, ImageMessage, LinkMessage, LocationEvent, LocationMessage, MusicResponseMessage, NewsArticle, NewsResponseMessage, ScanEvent, ShortVideoMessage, SubscribeEvent, TextMessage, UnsubscribeEvent, VideoRequestMessage, VideoResponseMessage, ViewEvent, VoiceRequestMessage, VoiceResponseMessage, WechatMessage, WechatRequestMessage, WechatResponseMessage}
 import zio.wechat.server.wechatRequestValidate
 
@@ -24,7 +23,7 @@ object EndpointServerTest extends App {
   val validation: Route = hook.validationEndpoint.toRoute {
     case (_, signature, timestamp, nonce, echostr) =>
       println(s"signature: $signature,timestamp: $timestamp, nonce: $nonce, echostr: $echostr")
-      runtime.unsafeRunToFuture(wechatRequestValidate(signature, timestamp, nonce, echostr).provideLayer(configLayer())).map(Right(_))
+      runtime.unsafeRunToFuture(wechatRequestValidate(signature, timestamp, nonce, echostr)).map(new Right(_))
   }
   val textRoute: Route = hook.wechatMessageEndpoint[WechatRequestMessage, WechatResponseMessage]().toRoute {
     case (_, signature, timestamp, nonce, body) =>
