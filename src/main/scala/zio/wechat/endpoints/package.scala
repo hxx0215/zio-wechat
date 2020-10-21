@@ -4,7 +4,7 @@ import io.circe.{Decoder, Encoder}
 import io.circe.parser.decode
 import io.circe.syntax._
 import sttp.tapir._
-import zio.wechat.model.{AccessTokenResponse, ErrorResponse, QRCodeRequest, QRCodeResponse}
+import zio.wechat.model.{AccessTokenResponse, ErrorResponse, MainMenu, QRCodeRequest, QRCodeResponse}
 import sttp.tapir.json.circe.jsonBody
 
 package object endpoints {
@@ -30,7 +30,7 @@ package object endpoints {
     .out(stringBody).errorOut(stringBody)
     .mapOut(mapping[AccessTokenResponse])
 
-  def generateQRCodeEndpoint[T <: QRCodeRequest : Encoder : Decoder: Schema: Validator] = endpoint.post.in("cgi-bin" / "qrcode" / "create")
+  def generateQRCodeEndpoint[T <: QRCodeRequest : Encoder : Decoder : Schema : Validator] = endpoint.post.in("cgi-bin" / "qrcode" / "create")
     .in(query[String]("access_token"))
     .in(jsonBody[T])
     .out(stringBody).errorOut(stringBody)
@@ -51,6 +51,12 @@ package object endpoints {
       baseEndpoint.post.in(xmlBody[WechatRequestMessage]).out(xmlBody[WechatResponseMessage]).errorOut(stringBody)
 
   }
+
+  val menuEndpoint = endpoint.post.in("cgi-bin" / "menu" / "create")
+    .in(query[String]("access_token"))
+    .in(jsonBody[MainMenu])
+    .out(stringBody).errorOut(stringBody)
+    .mapOut(mapping[ErrorResponse])
 
 
 }

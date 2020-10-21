@@ -3,8 +3,9 @@ package zio.wechat.endpoints
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 
+import io.circe.syntax.EncoderOps
 import sttp.tapir.DecodeResult
-import zio.wechat.model.{AccessTokenResponse, QRCodeActionInfo, QRCodeActionName, QRCodeIdScene, TemporaryQRCodeRequest}
+import zio.wechat.model.{ConcreteMenu, MainMenu, MenuType, QRCodeActionInfo, QRCodeActionName, QRCodeIdScene, TemporaryQRCodeRequest}
 
 object EndpointTest extends App {
 
@@ -18,27 +19,44 @@ object EndpointTest extends App {
   val result = accessTokenRequest.send().body
 
   println(result)
-  println(QRCodeActionName.QRSCENE.toString)
 
-  val qrcodeRequest = generateQRCodeEndpoint[TemporaryQRCodeRequest].toSttpRequest(uri"https://api.weixin.qq.com")
-  val showQRCodeRequest = showQRCodeEndpoint.toSttpRequestUnsafe(uri"https://mp.weixin.qq.com")
-  val DecodeResult.Value(v) = result
-  (for {
-    response <- v
-    token <- response
-    qrcodeResponse <- {
-      val DecodeResult.Value(body) =
-        qrcodeRequest.apply(token.accessToken, TemporaryQRCodeRequest(1000, QRCodeActionName.QRSCENE, QRCodeActionInfo(QRCodeIdScene(1))))
-          .send().body
+  def qrCodeTest = {
+    val qrcodeRequest = generateQRCodeEndpoint[TemporaryQRCodeRequest].toSttpRequest(uri"https://api.weixin.qq.com")
+    val showQRCodeRequest = showQRCodeEndpoint.toSttpRequestUnsafe(uri"https://mp.weixin.qq.com")
+    val DecodeResult.Value(v) = result
+    (for {
+      response <- v
+      token <- response
+      qrcodeResponse <- {
+        val DecodeResult.Value(body) =
+          qrcodeRequest.apply(token.accessToken, TemporaryQRCodeRequest(1000, QRCodeActionName.QRSCENE, QRCodeActionInfo(QRCodeIdScene(1))))
+            .send().body
+        body
+      }
+      qrResponse <- qrcodeResponse
+      finalResult <- {
+        val encoded = URLEncoder.encode(qrResponse.ticket, StandardCharsets.UTF_8)
+        println(encoded)
+        val applyResult = showQRCodeRequest.apply(encoded)
+        println(applyResult.uri)
+        applyResult.send().body
+      }
+    } yield finalResult).foreach(println)
+  }
+
+  def menuTest = {
+    val concreteMenu = ConcreteMenu("测试菜单", MenuType.Click, Some("test-menu-key"))
+    val mainMenu = MainMenu(Seq(concreteMenu))
+    val menuRequest = menuEndpoint.toSttpRequestUnsafe(uri"https://api.weixin.qq.com")
+    val DecodeResult.Value(v) = result
+    (for {
+      response <- v
+      token <- response
+      body <- menuRequest.apply(token.accessToken, mainMenu).send().body
+    } yield {
       body
-    }
-    qrResponse <- qrcodeResponse
-    finalResult <- {
-      val encoded = URLEncoder.encode(qrResponse.ticket, StandardCharsets.UTF_8)
-      println(encoded)
-      val applyResult = showQRCodeRequest.apply(encoded)
-      println(applyResult.uri)
-      applyResult.send().body
-    }
-  } yield finalResult).foreach(println)
+    }).foreach(println)
+  }
+
+  menuTest
 }

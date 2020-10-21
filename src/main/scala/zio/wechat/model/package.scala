@@ -15,7 +15,7 @@ package object model {
 
   @ConfiguredJsonCodec case class ErrorResponse(@JsonKey("errcode") code: Int, @JsonKey("errmsg") message: String)
 
-  @ConfiguredJsonCodec case class AccessTokenResponse(@JsonKey("access_token")accessToken: String,@JsonKey("expires_in") expiresIn: Int)
+  @ConfiguredJsonCodec case class AccessTokenResponse(@JsonKey("access_token") accessToken: String, @JsonKey("expires_in") expiresIn: Int)
 
   case class WechatAppConfig(appId: String, appSecret: String, token: String, aesKey: String)
 
@@ -83,12 +83,5 @@ package object model {
 
   implicit val config: Configuration = Configuration.default
 
-  sealed trait Menu {
-    def name: String
-  }
-
-  case class SubMenu(name: String, subButton: Seq[Menu]) extends Menu
-
-  @ConfiguredJsonCodec case class ConcreteMenu(name: String, `type`: MenuType, key: Option[String], url: Option[String], @JsonKey("media_id") mediaId: Option[String], @JsonKey("appid") appId: Option[String], @JsonKey("pagepath") pagePath: Option[String]) extends Menu
 
 }
