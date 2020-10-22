@@ -5,7 +5,7 @@ import java.nio.charset.StandardCharsets
 
 import io.circe.syntax.EncoderOps
 import sttp.tapir.DecodeResult
-import zio.wechat.model.{ConcreteMenu, MainMenu, MenuType, QRCodeActionInfo, QRCodeActionName, QRCodeIdScene, TemporaryQRCodeRequest}
+import zio.wechat.model.{ConcreteMenu, MainMenu, MenuInformation, MenuType, NewsInfo, NewsInfos, NewsMenu, QRCodeActionInfo, QRCodeActionName, QRCodeIdScene, SubButtonList, SubButtonMenu, SubMenu, TemporaryQRCodeRequest}
 
 object EndpointTest extends App {
 
@@ -28,9 +28,10 @@ object EndpointTest extends App {
       response <- v
       token <- response
       qrcodeResponse <- {
-        val DecodeResult.Value(body) =
-          qrcodeRequest.apply(token.accessToken, TemporaryQRCodeRequest(1000, QRCodeActionName.QRSCENE, QRCodeActionInfo(QRCodeIdScene(1))))
+        val DecodeResult.Value(body) = {
+          qrcodeRequest((token.accessToken, TemporaryQRCodeRequest(1000, QRCodeActionName.QRSCENE, QRCodeActionInfo(QRCodeIdScene(1)))))
             .send().body
+        }
         body
       }
       qrResponse <- qrcodeResponse
@@ -46,8 +47,9 @@ object EndpointTest extends App {
 
   def menuTest = {
     val concreteMenu = ConcreteMenu("测试菜单", MenuType.Click, Some("test-menu-key"))
-    val mainMenu = MainMenu(Seq(concreteMenu))
-    val menuRequest = menuEndpoint.toSttpRequestUnsafe(uri"https://api.weixin.qq.com")
+    val subMenu = SubMenu("子菜单测试", Seq(concreteMenu))
+    val mainMenu = MainMenu(Seq(concreteMenu, subMenu))
+    val menuRequest = createMenuEndpoint.toSttpRequestUnsafe(uri"https://api.weixin.qq.com")
     val DecodeResult.Value(v) = result
     (for {
       response <- v
@@ -58,5 +60,24 @@ object EndpointTest extends App {
     }).foreach(println)
   }
 
-  menuTest
+  def menuFetchTest = {
+    val menuRequest = fetchMenuEndpoint.toSttpRequestUnsafe(uri"https://api.weixin.qq.com")
+    val DecodeResult.Value(v) = result
+    (
+      for {
+        response <- v
+        token <- response
+        body <- menuRequest(token.accessToken).send().body
+      } yield {
+        body
+      }
+      ).foreach(println)
+
+  }
+
+  def menuFetchTypeTest = {
+  }
+
+    menuFetchTest
+
 }

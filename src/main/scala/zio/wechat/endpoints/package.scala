@@ -4,12 +4,13 @@ import io.circe.{Decoder, Encoder}
 import io.circe.parser.decode
 import io.circe.syntax._
 import sttp.tapir._
-import zio.wechat.model.{AccessTokenResponse, ErrorResponse, MainMenu, QRCodeRequest, QRCodeResponse}
+import zio.wechat.model.{AccessTokenResponse, ErrorResponse, MainMenu, MenuInformation, QRCodeRequest, QRCodeResponse}
 import sttp.tapir.json.circe.jsonBody
 
 package object endpoints {
   def mapOut[T: Decoder]() = (out: String) => {
-    decode[T](out) match {
+    val result  = decode[T](out)
+    result match {
       case Right(value) => Right[ErrorResponse, T](value)
       case Left(_) =>
         val Right(e) = decode[ErrorResponse](out)
@@ -30,11 +31,15 @@ package object endpoints {
     .out(stringBody).errorOut(stringBody)
     .mapOut(mapping[AccessTokenResponse])
 
-  def generateQRCodeEndpoint[T <: QRCodeRequest : Encoder : Decoder : Schema : Validator] = endpoint.post.in("cgi-bin" / "qrcode" / "create")
-    .in(query[String]("access_token"))
-    .in(jsonBody[T])
-    .out(stringBody).errorOut(stringBody)
-    .mapOut(mapping[QRCodeResponse])
+
+  def baseOutEndpoint[T: Decoder : Encoder] = endpoint.out(stringBody).errorOut(stringBody).mapOut(mapping[T])
+
+  val accessTokenQuery = query[String]("access_token")
+
+  def generateQRCodeEndpoint[M <: QRCodeRequest : Encoder : Decoder : Schema : Validator] =
+    endpoint.post.in("cgi-bin" / "qrcode" / "create")
+      .in(accessTokenQuery)
+      .in(jsonBody[M]).out(stringBody).errorOut(stringBody).mapOut(mapping[QRCodeResponse])
 
   val showQRCodeEndpoint = endpoint.get.in("cgi-bin" / "showqrcode").in(query[String]("ticket"))
     .out(fileBody).errorOut(stringBody)
@@ -52,11 +57,11 @@ package object endpoints {
 
   }
 
-  val menuEndpoint = endpoint.post.in("cgi-bin" / "menu" / "create")
-    .in(query[String]("access_token"))
+  val createMenuEndpoint = baseOutEndpoint[ErrorResponse].post.in("cgi-bin" / "menu" / "create").in(accessTokenQuery)
     .in(jsonBody[MainMenu])
+
+  val fetchMenuEndpoint = endpoint.get.in("cgi-bin" / "get_current_selfmenu_info").in(accessTokenQuery).out(stringBody).errorOut(stringBody).mapOut(mapping[MenuInformation])
+
+  val deleteMenuEndpoint = baseOutEndpoint[ErrorResponse].get.in("cgi-bin" / "menu" / "delete").in(accessTokenQuery)
     .out(stringBody).errorOut(stringBody)
-    .mapOut(mapping[ErrorResponse])
-
-
 }

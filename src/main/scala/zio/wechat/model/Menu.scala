@@ -2,6 +2,7 @@ package zio.wechat.model
 
 import enumeratum._
 import io.circe._
+import io.circe.generic.JsonCodec
 import io.circe.generic.extras.{Configuration, ConfiguredJsonCodec, JsonKey}
 import io.circe.generic.semiauto._
 import io.circe.syntax.EncoderOps
@@ -42,6 +43,8 @@ case object MenuType extends Enum[MenuType] {
 
   case object Mini extends MenuType("miniprogram")
 
+  case object News extends MenuType("news")
+
 }
 
 sealed trait Menu {
@@ -49,10 +52,33 @@ sealed trait Menu {
 }
 
 object Menu {
-  implicit val menuDecoder: Decoder[Menu] = deriveDecoder
+  implicit val menuDecoder: Decoder[Menu] = (c: HCursor) => for {
+    name <- c.downField("name").as[String]
+    t <- c.downField("type").as[Option[String]]
+    value <- c.downField("value").as[Option[String]]
+    subButton <- c.downField("sub_button").as[Option[SubButtonList]]
+    key <- c.downField("key").as[Option[String]]
+    url <- c.downField("url").as[Option[String]]
+    mediaId <- c.downField("media_id").as[Option[String]]
+    appId <- c.downField("app_id").as[Option[String]]
+    pagePath <- c.downField("pagepath").as[Option[String]]
+    newsInfo <- c.downField("news_info").as[Option[NewsInfos]]
+  } yield {
+    if (t.isDefined){
+      if (value.isDefined){
+        NewsMenu(name,value.get,newsInfo.get)
+      }else{
+        ConcreteMenu(name,MenuType.withName(t.get),key,url,mediaId,appId,pagePath)
+      }
+    }else{
+      SubButtonMenu(name,subButton.get)
+    }
+  }
   implicit val menuEncoder: Encoder[Menu] = Encoder.instance({
     case sub: SubMenu => sub.asJson
     case concreteMenu: ConcreteMenu => concreteMenu.asJson
+    case news: NewsMenu => news.asJson
+    case subMenu: SubButtonMenu => subMenu.asJson
   })
 }
 
@@ -100,3 +126,33 @@ object ConcreteMenu {
 
 }
 
+@ConfiguredJsonCodec case class NewsInfo(title: String, author: String, digest: String, showCover: Int, coverUrl: String, contentUrl: String, sourceUrl: String)
+
+object NewsInfo {
+  implicit val config: Configuration = Configuration.default.withSnakeCaseMemberNames
+}
+
+@JsonCodec case class NewsInfos(list: Seq[NewsInfo])
+
+@ConfiguredJsonCodec case class NewsMenu(name: String, value: String, newsInfo: NewsInfos) extends Menu {
+  val `type` = "news"
+}
+
+object NewsMenu {
+  implicit val config: Configuration = Configuration.default.withSnakeCaseMemberNames
+}
+
+@ConfiguredJsonCodec case class MenuInformation(isMenuOpen: Int, selfmenuInfo: MainMenu)
+
+object MenuInformation {
+  implicit val config: Configuration = Configuration.default.withSnakeCaseMemberNames
+}
+
+
+@JsonCodec case class SubButtonList(list: Seq[Menu])
+
+@ConfiguredJsonCodec case class SubButtonMenu(name: String, subButton: SubButtonList) extends Menu
+
+object SubButtonMenu {
+  implicit val config: Configuration = Configuration.default.withSnakeCaseMemberNames
+}
