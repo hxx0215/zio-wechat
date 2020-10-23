@@ -64,14 +64,14 @@ object Menu {
     pagePath <- c.downField("pagepath").as[Option[String]]
     newsInfo <- c.downField("news_info").as[Option[NewsInfos]]
   } yield {
-    if (t.isDefined){
-      if (value.isDefined){
-        NewsMenu(name,value.get,newsInfo.get)
-      }else{
-        ConcreteMenu(name,MenuType.withName(t.get),key,url,mediaId,appId,pagePath)
+    if (t.isDefined) {
+      if (value.isDefined) {
+        NewsMenu(name, value.get, newsInfo.get)
+      } else {
+        ConcreteMenu(name, MenuType.withName(t.get), key, url, mediaId, appId, pagePath)
       }
-    }else{
-      SubButtonMenu(name,subButton.get)
+    } else {
+      SubButtonMenu(name, subButton.get)
     }
   }
   implicit val menuEncoder: Encoder[Menu] = Encoder.instance({
@@ -154,5 +154,26 @@ object MenuInformation {
 @ConfiguredJsonCodec case class SubButtonMenu(name: String, subButton: SubButtonList) extends Menu
 
 object SubButtonMenu {
+  implicit val config: Configuration = Configuration.default.withSnakeCaseMemberNames
+}
+
+
+case class MatchRule(tagId: Option[String] = None,
+                     sex: Option[String] = None,
+                     country: Option[String] = None,
+                     province: Option[String] = None,
+                     city: Option[String] = None,
+                     clientPlatformType: Option[String] = None,
+                     language: Option[String] = None)
+
+object MatchRule {
+  implicit val configuration: Configuration = Configuration.default.withSnakeCaseMemberNames
+  implicit val matchRuleEncoder: Encoder[MatchRule] = deriveEncoder[MatchRule].mapJson(_.dropNullValues)
+  implicit val matchRuleDecoder: Decoder[MatchRule] = deriveDecoder[MatchRule]
+}
+
+@ConfiguredJsonCodec case class CustomMainMenu(button: Seq[Menu], matchRule: MatchRule)
+
+object CustomMainMenu {
   implicit val config: Configuration = Configuration.default.withSnakeCaseMemberNames
 }

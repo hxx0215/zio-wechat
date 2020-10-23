@@ -4,12 +4,12 @@ import io.circe.{Decoder, Encoder}
 import io.circe.parser.decode
 import io.circe.syntax._
 import sttp.tapir._
-import zio.wechat.model.{AccessTokenResponse, ErrorResponse, MainMenu, MenuInformation, QRCodeRequest, QRCodeResponse}
+import zio.wechat.model.{AccessTokenResponse, CustomMainMenu, ErrorResponse, MainMenu, MenuInformation, QRCodeRequest, QRCodeResponse}
 import sttp.tapir.json.circe.jsonBody
 
 package object endpoints {
   def mapOut[T: Decoder]() = (out: String) => {
-    val result  = decode[T](out)
+    val result = decode[T](out)
     result match {
       case Right(value) => Right[ErrorResponse, T](value)
       case Left(_) =>
@@ -64,4 +64,7 @@ package object endpoints {
 
   val deleteMenuEndpoint = baseOutEndpoint[ErrorResponse].get.in("cgi-bin" / "menu" / "delete").in(accessTokenQuery)
     .out(stringBody).errorOut(stringBody)
+
+  val createCustomMenuEndpoint = baseOutEndpoint[ErrorResponse].post.in("cgi-bin" / "menu" / "addconditional").in(accessTokenQuery)
+    .in(jsonBody[CustomMainMenu])
 }
