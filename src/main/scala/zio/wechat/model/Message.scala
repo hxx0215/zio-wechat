@@ -16,6 +16,7 @@ trait WechatMessage {
 
   def msgId: Long
 }
+
 sealed trait WechatRequestMessage extends WechatMessage
 
 sealed trait WechatResponseMessage extends WechatMessage {
@@ -103,11 +104,50 @@ object WechatMessage {
             DecodeResult.Value(
               ViewEvent tupled baseMessage(root) :+ (root \ "EventKey").text
             )
+          case "scancode_push" =>
+            DecodeResult.Value(
+              ScanCodePushEvent tupled baseMessage(root) :+ (root \ "EventKey").text :+ (ScanType()) :+ (root \ "ScanResult").text
+            )
+          case "scancode_waitmsg" =>
+            DecodeResult.Value(
+              ScanCodeWaitEvent tupled baseMessage(root) :+ (root \ "EventKey").text :+ (ScanType()) :+ (root \ "ScanResult").text
+            )
+          case e@("pic_sysphoto" | "pic_photo_or_album" | "pic_weixin") =>
+            val cons = e match {
+              case "pic_sysphoto" => SystemPhotoEvent.tupled
+              case "pic_photo_or_album" => AlbumEvent.tupled
+              case "pic_weixin" => PicWeChatEvent.tupled
+            }
+            DecodeResult.Value(
+              cons(baseMessage(root) :+ (root \ "EventKey").text :+ ({
+                val count = (root \ "SendPicsInfo" \ "Count").text.toInt
+                val infos = (root \ "SendPicsInfo" \ "PicList").map(node => {
+                  (node \ "item" \ "PicMd5Sum").text
+                })
+                SendPicsInfo(count, infos)
+              }))
+            )
+          case "location_select" =>
+            DecodeResult.Value(
+              LocationSelectEvent tupled baseMessage(root) :+ (root \ "EventKey").text :+ {
+                val info = root \ "SendLocationInfo"
+                val x = (info \ "Location_X").text
+                val y = (info \ "Location_Y").text
+                val scale = (info \ "Scale").text
+                val label = (info \ "Label").text
+                val poiName = (info \ "Poiname").text
+                SendLocationInfo(x, y, scale, label, poiName)
+              })
+          case "view_miniprogram" =>
+            DecodeResult.Value(
+              MiniProgramEvent tupled baseMessage(root) :+ (root \ "EventKey").text :+ (root \ "MenuId").text
+            )
         }
       case _ => DecodeResult.Missing
     }
   }
 }
+
 case class TextMessage(toUsername: String, fromUsername: String, createTime: Int, msgId: Long, content: String) extends WechatRequestMessage with WechatResponseMessage {
   override val msgType: String = "text"
 
@@ -332,3 +372,39 @@ case class ClickEvent(toUsername: String, fromUsername: String, createTime: Int,
 case class ViewEvent(toUsername: String, fromUsername: String, createTime: Int, msgId: Long, eventKey: String) extends WechatRequestMessage with WechatEvent {
   override def event: String = "VIEW"
 }
+
+case class ScanCodePushEvent(toUsername: String, fromUsername: String, createTime: Int, msgId: Long, eventKey: String, scanCodeInfo: ScanType, scanResult: String) extends WechatRequestMessage with WechatEvent {
+  override def event: String = "scancode_push"
+}
+
+case class ScanCodeWaitEvent(toUsername: String, fromUsername: String, createTime: Int, msgId: Long, eventKey: String, scanCodeInfo: ScanType, scanResult: String) extends WechatRequestMessage with WechatEvent {
+  override def event: String = "scancode_waitmsg"
+}
+
+case class SystemPhotoEvent(toUsername: String, fromUsername: String, createTime: Int, msgId: Long, eventKey: String, sendPicsInfo: SendPicsInfo) extends WechatRequestMessage with WechatEvent {
+  override def event: String = "pic_sysphoto"
+}
+
+case class AlbumEvent(toUsername: String, fromUsername: String, createTime: Int, msgId: Long, eventKey: String, sendPicsInfo: SendPicsInfo) extends WechatRequestMessage with WechatEvent {
+  override def event: String = "pic_photo_or_album"
+}
+
+case class PicWeChatEvent(toUsername: String, fromUsername: String, createTime: Int, msgId: Long, eventKey: String, sendPicsInfo: SendPicsInfo) extends WechatRequestMessage with WechatEvent {
+  override def event: String = "pic_weixin"
+}
+
+case class LocationSelectEvent(toUsername: String, fromUsername: String, createTime: Int, msgId: Long, eventKey: String, sendLocationInfo: SendLocationInfo) extends WechatRequestMessage with WechatEvent {
+  override def event: String = "location_select"
+}
+
+case class MiniProgramEvent(toUsername: String, fromUsername: String, createTime: Int, msgId: Long, eventKey: String, menuId: String) extends WechatRequestMessage with WechatEvent {
+  override def event: String = "view_miniprogram"
+}
+
+case class ScanType() {
+  val scanType = "qrcode"
+}
+
+case class SendPicsInfo(count: Int, PicList: Seq[String])
+
+case class SendLocationInfo(x: String, y: String, scale: String, label: String, poiName: String)
