@@ -2,23 +2,12 @@ package zio.wechat.model
 
 import enumeratum._
 import io.circe._
-import io.circe.generic.JsonCodec
-import io.circe.generic.extras.{Configuration, ConfiguredJsonCodec, JsonKey}
-import io.circe.generic.semiauto._
 import io.circe.syntax.EncoderOps
 
-case class MainMenu(button: Seq[Menu])
-
-object MainMenu {
-  implicit val mainMenuDecoder: Decoder[MainMenu] = deriveDecoder[MainMenu]
-  implicit val mainMenuEncoder: Encoder[MainMenu] = (m: MainMenu) => Json.obj(
-    "button" -> m.button.asJson
-  )
-}
 
 sealed abstract class MenuType(override val entryName: String) extends EnumEntry
 
-case object MenuType extends Enum[MenuType] {
+case object MenuType extends Enum[MenuType] with CirceEnum[MenuType] {
   val values = findValues
 
   case object Click extends MenuType("click")
@@ -47,114 +36,149 @@ case object MenuType extends Enum[MenuType] {
 
 }
 
+
 sealed trait Menu {
   def name: String
 }
 
 object Menu {
-  implicit val menuDecoder: Decoder[Menu] = (c: HCursor) => for {
-    name <- c.downField("name").as[String]
-    t <- c.downField("type").as[Option[String]]
-    value <- c.downField("value").as[Option[String]]
-    subButton <- c.downField("sub_button").as[Option[SubButtonList]]
-    key <- c.downField("key").as[Option[String]]
-    url <- c.downField("url").as[Option[String]]
-    mediaId <- c.downField("media_id").as[Option[String]]
-    appId <- c.downField("app_id").as[Option[String]]
-    pagePath <- c.downField("pagepath").as[Option[String]]
-    newsInfo <- c.downField("news_info").as[Option[NewsInfos]]
-  } yield {
-    if (t.isDefined) {
-      if (value.isDefined) {
-        NewsMenu(name, value.get, newsInfo.get)
-      } else {
-        ConcreteMenu(name, MenuType.withName(t.get), key, url, mediaId, appId, pagePath)
-      }
-    } else {
-      SubButtonMenu(name, subButton.get)
-    }
-  }
+
+  import cats.syntax.functor._
+
+  implicit val menuDecoder: Decoder[Menu] = List[Decoder[Menu]](
+    Decoder[MenuGroup].widen,
+    Decoder[MenuItem].widen,
+    Decoder[NewsMenuItem].widen,
+    Decoder[MenuGroupResponse].widen)
+    .reduceLeft(_ or _)
   implicit val menuEncoder: Encoder[Menu] = Encoder.instance({
-    case sub: SubMenu => sub.asJson
-    case concreteMenu: ConcreteMenu => concreteMenu.asJson
-    case news: NewsMenu => news.asJson
-    case subMenu: SubButtonMenu => subMenu.asJson
+    case sub: MenuGroup => sub.asJson
+    case concreteMenu: MenuItem => concreteMenu.asJson
+    case news: NewsMenuItem => news.asJson
+    case subMenu: MenuGroupResponse => subMenu.asJson
   })
 }
 
-case class SubMenu(name: String, subButton: Seq[Menu]) extends Menu
+case class MenuGroup(name: String, subButton: Seq[Menu]) extends Menu
 
-object SubMenu {
+object MenuGroup {
 
-  implicit val subMenuDecoder: Decoder[SubMenu] = (c: HCursor) => for {
-    name <- c.downField("name").as[String]
-    sub <- c.downField("sub_button").as[Seq[Menu]]
-  } yield SubMenu(name, sub)
+  import io.circe.derivation._
 
-  implicit val subMenuEncoder: Encoder[SubMenu] = (s: SubMenu) => Json.obj(
-    "name" -> Json.fromString(s.name),
-    "sub_button" -> s.subButton.asJson
-  )
+  implicit val decode: Decoder[MenuGroup] = deriveDecoder(derivation.renaming.snakeCase)
+  //    (c: HCursor) => for {
+  //    name <- c.downField("name").as[String]
+  //    sub <- c.downField("sub_button").as[Seq[Menu]]
+  //  } yield MenuGroup(name, sub)
+
+  implicit val encode: Encoder[MenuGroup] = deriveEncoder(derivation.renaming.snakeCase)
+  //    Encoder.instance[MenuGroup] {
+  //    case MenuGroup(name, subButton) => Json.obj(
+  //      "name" -> name.asJson,
+  //      "sub_button" -> subButton.asJson
+  //    )
+  //  }
+  //Encoder.forProduct2("name", "sub_button")(m => (m.name, m.subButton))
 }
 
-case class ConcreteMenu(name: String, `type`: MenuType, key: Option[String], url: Option[String] = None, mediaId: Option[String] = None, appId: Option[String] = None, pagePath: Option[String] = None) extends Menu
+case class MenuItem(name: String, `type`: MenuType, key: Option[String], url: Option[String] = None, mediaId: Option[String] = None, appId: Option[String] = None, pagePath: Option[String] = None) extends Menu
 
-object ConcreteMenu {
-  implicit val concreteMenuDecoder: Decoder[ConcreteMenu] = (c: HCursor) => for {
-    name <- c.downField("name").as[String]
-    t <- c.downField("type").as[String]
-    key <- c.downField("key").as[Option[String]]
-    url <- c.downField("url").as[Option[String]]
-    mediaId <- c.downField("media_id").as[Option[String]]
-    appId <- c.downField("app_id").as[Option[String]]
-    pagePath <- c.downField("pagepath").as[Option[String]]
-  } yield
-    ConcreteMenu(name, MenuType.withName(t), key, url, mediaId, appId, pagePath)
+object MenuItem {
+  implicit val concreteMenuDecoder: Decoder[MenuItem] =
+    Decoder.forProduct7("name",
+      "type",
+      "key",
+      "url",
+      "media_id",
+      "app_id",
+      "pagepath")(MenuItem.apply)
 
-  implicit val concreteMenuEncoder: Encoder[ConcreteMenu] = new Encoder[ConcreteMenu] {
-    override def apply(m: ConcreteMenu): Json = Json.obj(
-      ("name", Json.fromString(m.name)),
-      ("type", Json.fromString(m.`type`.entryName)),
-      ("key", m.key.map(Json.fromString).getOrElse(Json.Null)),
-      ("url", m.url.map(Json.fromString).getOrElse(Json.Null)),
-      ("media_id", m.mediaId.map(Json.fromString).getOrElse(Json.Null)),
-      ("app_id", m.appId.map(Json.fromString).getOrElse(Json.Null)),
-      ("pagepath", m.pagePath.map(Json.fromString).getOrElse(Json.Null))
-    )
-  }.mapJson(_.dropNullValues)
+  implicit val encoder: Encoder[MenuItem] =
+    (Encoder.forProduct7[MenuItem, String, MenuType, Option[String], Option[String], Option[String], Option[String], Option[String]]("name",
+      "type",
+      "key",
+      "url",
+      "media_id",
+      "app_id",
+      "pagepath")(MenuItem.unapply(_).get)).mapJson(_.dropNullValues)
 
 
 }
 
-@ConfiguredJsonCodec case class NewsInfo(title: String, author: String, digest: String, showCover: Int, coverUrl: String, contentUrl: String, sourceUrl: String)
+case class NewsInfo(title: String, author: String, digest: String, showCover: Int, coverUrl: String, contentUrl: String, sourceUrl: String)
 
 object NewsInfo {
-  implicit val config: Configuration = Configuration.default.withSnakeCaseMemberNames
+  implicit val encoder: Encoder[NewsInfo] = Encoder.forProduct7("title",
+    "author",
+    "digest",
+    "show_cover",
+    "cover_url",
+    "content_url",
+    "source_url")(NewsInfo.unapply(_).get)
+  implicit val decoder: Decoder[NewsInfo] = Decoder.forProduct7("title",
+    "author",
+    "digest",
+    "show_cover",
+    "cover_url",
+    "content_url",
+    "source_url")(NewsInfo.apply)
 }
 
-@JsonCodec case class NewsInfos(list: Seq[NewsInfo])
+case class NewsInfos(list: Seq[NewsInfo])
 
-@ConfiguredJsonCodec case class NewsMenu(name: String, value: String, newsInfo: NewsInfos) extends Menu {
+object NewsInfos {
+  implicit val encoder: Encoder[NewsInfos] = Encoder.instance[NewsInfos] {
+    case NewsInfos(list) => Json.obj(
+      "list" -> list.asJson
+    )
+  }
+  implicit val decoder: Decoder[NewsInfos] = Decoder.instance[NewsInfos] { c =>
+    c.get[Seq[NewsInfo]]("list").map(NewsInfos.apply)
+  }
+}
+
+case class NewsMenuItem(name: String, value: String, newsInfo: NewsInfos) extends Menu {
   val `type` = "news"
 }
 
-object NewsMenu {
-  implicit val config: Configuration = Configuration.default.withSnakeCaseMemberNames
+object NewsMenuItem {
+  implicit val encoder: Encoder[NewsMenuItem] = Encoder.forProduct4("name", "value", "news_info", "type")(m => {
+    (m.name, m.value, m.newsInfo, m.`type`)
+  })
+  implicit val decoder: Decoder[NewsMenuItem] = Decoder.forProduct3("name", "value", "news_info")(NewsMenuItem.apply)
 }
 
-@ConfiguredJsonCodec case class MenuInformation(isMenuOpen: Int, selfmenuInfo: MainMenu)
+case class MenuInformation(isMenuOpen: Int, selfMenuInfo: MainMenu)
 
 object MenuInformation {
-  implicit val config: Configuration = Configuration.default.withSnakeCaseMemberNames
+  implicit val encoder: Encoder[MenuInformation] = Encoder.forProduct2("is_menu_open", "selfmenu_info")(MenuInformation.unapply(_).get)
+  implicit val decoder: Decoder[MenuInformation] = Decoder.forProduct2("is_menu_open", "selfmenu_info")(MenuInformation.apply)
 }
 
 
-@JsonCodec case class SubButtonList(list: Seq[Menu])
+case class SubButtonList(list: Seq[Menu])
 
-@ConfiguredJsonCodec case class SubButtonMenu(name: String, subButton: SubButtonList) extends Menu
+object SubButtonList {
+  implicit val encoder: Encoder[SubButtonList] = Encoder.instance {
+    case SubButtonList(list) => Json.obj(
+      "list" -> list.asJson
+    )
+  }
 
-object SubButtonMenu {
-  implicit val config: Configuration = Configuration.default.withSnakeCaseMemberNames
+  implicit val decoder: Decoder[SubButtonList] = Decoder.instance[SubButtonList](c => c.get[Seq[Menu]]("list").map(SubButtonList.apply))
+}
+
+/**
+ * this class is only used for [[zio.wechat.endpoints.fetchMenuEndpoint]]'s response
+ *
+ * @param name      name
+ * @param subButton sub_button
+ */
+case class MenuGroupResponse(name: String, subButton: SubButtonList) extends Menu
+
+object MenuGroupResponse {
+  implicit val encoder: Encoder[MenuGroupResponse] = Encoder.forProduct2("name", "sub_button")(MenuGroupResponse.unapply(_).get)
+  implicit val decoder: Decoder[MenuGroupResponse] = Decoder.forProduct2("name", "sub_button")(MenuGroupResponse.apply)
 }
 
 
@@ -167,13 +191,45 @@ case class MatchRule(tagId: Option[String] = None,
                      language: Option[String] = None)
 
 object MatchRule {
-  implicit val configuration: Configuration = Configuration.default.withSnakeCaseMemberNames
-  implicit val matchRuleEncoder: Encoder[MatchRule] = deriveEncoder[MatchRule].mapJson(_.dropNullValues)
+
+  import io.circe.derivation._
+
+  implicit val matchRuleEncoder: Encoder[MatchRule] = deriveEncoder[MatchRule](derivation.renaming.snakeCase).mapJson(_.dropNullValues)
   implicit val matchRuleDecoder: Decoder[MatchRule] = deriveDecoder[MatchRule]
 }
 
-@ConfiguredJsonCodec case class CustomMainMenu(button: Seq[Menu], matchRule: MatchRule)
+case class MainMenu(button: Seq[Menu], matchRule: Option[MatchRule] = None, menuId: Option[String] = None)
 
-object CustomMainMenu {
-  implicit val config: Configuration = Configuration.default.withSnakeCaseMemberNames
+object MainMenu {
+  implicit val mainMenuDecoder: Decoder[MainMenu] = Decoder.forProduct3("button", "matchRule", "menuid")(MainMenu.apply)
+  implicit val mainMenuEncoder: Encoder[MainMenu] = Encoder.forProduct3[MainMenu, Seq[Menu], Option[MatchRule], Option[String]]("button", "matchRule", "menuid")(MainMenu.unapply(_).get).mapJson(_.dropNullValues)
 }
+
+case class MenuId(menuId: String)
+
+object MenuId {
+  implicit val encoder: Encoder[MenuId] = Encoder.forProduct1("menuid")(MenuId.unapply(_).get)
+  implicit val decoder: Decoder[MenuId] = Decoder.forProduct1("menuid")(MenuId.apply)
+}
+
+
+case class CustomMenuConfig(menu: MainMenu, conditionalMenu: Option[MainMenu])
+
+object CustomMenuConfig {
+
+  import cats.instances.either._
+  import cats.implicits.catsSyntaxTuple2Semigroupal
+
+  implicit val encoder: Encoder[CustomMenuConfig] = Encoder.instance {
+    case CustomMenuConfig(menu, conditionalMenu) => Json.obj(
+      "menu" -> menu.asJson,
+      "conditionalmenu" -> conditionalMenu.asJson
+    )
+  }
+
+  implicit val decoder: Decoder[CustomMenuConfig] = Decoder.instance(c => (
+    c.get[MainMenu]("menu"),
+    c.get[Option[MainMenu]]("conditionalmenu")
+    ).mapN(CustomMenuConfig.apply))
+}
+

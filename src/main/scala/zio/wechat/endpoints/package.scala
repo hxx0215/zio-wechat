@@ -4,7 +4,7 @@ import io.circe.{Decoder, Encoder}
 import io.circe.parser.decode
 import io.circe.syntax._
 import sttp.tapir._
-import zio.wechat.model.{AccessTokenResponse, CustomMainMenu, ErrorResponse, MainMenu, MenuInformation, QRCodeRequest, QRCodeResponse}
+import zio.wechat.model.{AccessTokenResponse, MenuId, CustomMenuConfig, ErrorResponse, MainMenu, MenuInformation, QRCodeRequest, QRCodeResponse}
 import sttp.tapir.json.circe.jsonBody
 
 package object endpoints {
@@ -57,14 +57,25 @@ package object endpoints {
 
   }
 
-  val createMenuEndpoint = baseOutEndpoint[ErrorResponse].post.in("cgi-bin" / "menu" / "create").in(accessTokenQuery)
-    .in(jsonBody[MainMenu])
+  val createMenuEndpoint =
+//    baseOutEndpoint[ErrorResponse]
+  endpoint.out(stringBody)
+      .post.in("cgi-bin" / "menu" / "create").in(accessTokenQuery)
+      .in(jsonBody[MainMenu])
 
   val fetchMenuEndpoint = endpoint.get.in("cgi-bin" / "get_current_selfmenu_info").in(accessTokenQuery).out(stringBody).errorOut(stringBody).mapOut(mapping[MenuInformation])
 
   val deleteMenuEndpoint = baseOutEndpoint[ErrorResponse].get.in("cgi-bin" / "menu" / "delete").in(accessTokenQuery)
     .out(stringBody).errorOut(stringBody)
 
-  val createCustomMenuEndpoint = baseOutEndpoint[ErrorResponse].post.in("cgi-bin" / "menu" / "addconditional").in(accessTokenQuery)
-    .in(jsonBody[CustomMainMenu])
+  val createCustomMenuEndpoint = baseOutEndpoint[MenuId].post.in("cgi-bin" / "menu" / "addconditional").in(accessTokenQuery)
+    .in(jsonBody[MainMenu])
+
+  val deleteCustomMenuEndpoint = baseOutEndpoint[ErrorResponse].post.in("cgi-bin" / "menu" / "delconditional").in(accessTokenQuery)
+    .in(jsonBody[MenuId])
+
+  import zio.wechat.model.CustomMenuConfig.customMenuConfigEncoder
+
+  val fetchMenuConfigEndpoint = baseOutEndpoint[CustomMenuConfig].get.in("cgi-bin" / "menu" / "get").in(accessTokenQuery)
+
 }
