@@ -4,7 +4,7 @@ import io.circe.{Decoder, Encoder}
 import io.circe.parser.decode
 import io.circe.syntax._
 import sttp.tapir._
-import zio.wechat.model.{AccessTokenResponse, MenuId, CustomMenuConfig, ErrorResponse, MainMenu, MenuInformation, QRCodeRequest, QRCodeResponse}
+import zio.wechat.model.{AccessTokenResponse, CustomMenuConfig, CustomSupportAvatarForm, ErrorResponse, MainMenu, MenuId, MenuInformation, QRCodeRequest, QRCodeResponse, RemoveCustomSupportMessage, UpdateCustomSupportMessage}
 import sttp.tapir.json.circe.jsonBody
 
 package object endpoints {
@@ -58,8 +58,8 @@ package object endpoints {
   }
 
   val createMenuEndpoint =
-//    baseOutEndpoint[ErrorResponse]
-  endpoint.out(stringBody)
+  //    baseOutEndpoint[ErrorResponse]
+    endpoint.out(stringBody)
       .post.in("cgi-bin" / "menu" / "create").in(accessTokenQuery)
       .in(jsonBody[MainMenu])
 
@@ -76,5 +76,20 @@ package object endpoints {
 
 
   val fetchMenuConfigEndpoint = baseOutEndpoint[CustomMenuConfig].get.in("cgi-bin" / "menu" / "get").in(accessTokenQuery)
+
+
+  val createCustomSupportEndpoint = baseOutEndpoint[ErrorResponse].post.in("customservice" / "kfaccount" / "add").in(accessTokenQuery)
+    .in(jsonBody[UpdateCustomSupportMessage])
+
+  val updateCustomSupportEndpoint = baseOutEndpoint[ErrorResponse].post.in("customservice" / "kfaccount" / "update").in(accessTokenQuery)
+    .in(jsonBody[UpdateCustomSupportMessage])
+
+  val removeCustomSupportEndpoint = baseOutEndpoint[ErrorResponse].post.in("customservice" / "kfaccount" / "del").in(accessTokenQuery)
+    .in(jsonBody[RemoveCustomSupportMessage])
+
+  val uploadCustomSupportAvatarEndpoint = baseOutEndpoint[ErrorResponse].post.in("customservice" / "kfaccount" / "uploadheadimg").in(accessTokenQuery)
+    .in(query[String]("kf_account")).in(multipartBody[CustomSupportAvatarForm])
+
+
 
 }

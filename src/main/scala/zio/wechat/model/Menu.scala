@@ -1,8 +1,9 @@
 package zio.wechat.model
 
+import scala.collection.immutable.Seq
 import enumeratum._
 import io.circe._
-import io.circe.syntax.EncoderOps
+import io.circe.syntax._
 
 
 sealed abstract class MenuType(override val entryName: String) extends EnumEntry
