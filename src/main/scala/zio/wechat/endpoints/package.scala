@@ -74,7 +74,6 @@ package object endpoints {
   val deleteCustomMenuEndpoint = baseOutEndpoint[ErrorResponse].post.in("cgi-bin" / "menu" / "delconditional").in(accessTokenQuery)
     .in(jsonBody[MenuId])
 
-  import zio.wechat.model.CustomMenuConfig.customMenuConfigEncoder
 
   val fetchMenuConfigEndpoint = baseOutEndpoint[CustomMenuConfig].get.in("cgi-bin" / "menu" / "get").in(accessTokenQuery)
 
