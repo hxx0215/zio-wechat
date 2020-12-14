@@ -28,7 +28,7 @@ libraryDependencies ++= Seq(
   "org.typelevel" %% "cats-core" % "2.0.0",
   "com.beachape" %% "enumeratum" % enumeratumVersion,
   "com.beachape" %% "enumeratum-circe" % enumeratumVersion,
-  "com.softwaremill.sttp.client" %% "async-http-client-backend-zio" % "2.2.9"
+  "com.softwaremill.sttp.client" %% "async-http-client-backend-future" % "2.2.9"
 
 )
 scalacOptions += "-Ymacro-annotations"

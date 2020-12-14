@@ -4,7 +4,7 @@ import io.circe.{Decoder, Encoder}
 import io.circe.parser.decode
 import io.circe.syntax._
 import sttp.tapir._
-import zio.wechat.model.{AccessTokenResponse, CustomMenuConfig, CustomSupportAvatarForm, CustomSupportList, ErrorResponse, MainMenu, MenuId, MenuInformation, QRCodeRequest, QRCodeResponse, CustomSupportAccount, UpdateCustomSupportMessage}
+import zio.wechat.model.{AccessTokenResponse, ArticleListAsset, AssetResponse, CustomMenuConfig, CustomSupportAccount, CustomSupportList, ErrorResponse, MainMenu, MediaForm, MenuId, MenuInformation, QRCodeRequest, QRCodeResponse, UpdateCustomSupportMessage, UrlResponse}
 import sttp.tapir.json.circe.jsonBody
 
 package object endpoints {
@@ -88,9 +88,15 @@ package object endpoints {
     .in(jsonBody[CustomSupportAccount])
 
   val uploadCustomSupportAvatarEndpoint = baseOutEndpoint[ErrorResponse].post.in("customservice" / "kfaccount" / "uploadheadimg").in(accessTokenQuery)
-    .in(query[String]("kf_account")).in(multipartBody[CustomSupportAvatarForm])
+    .in(query[String]("kf_account")).in(multipartBody)
 
   val fetchAllCustomSupportEndpoint = baseOutEndpoint[CustomSupportList].get.in("cgi" / "customservice" / "getkflist")
 
+
+  val uploadArticleImageEndpoint = baseOutEndpoint[UrlResponse].post.in("cgi-bin" / "media" / "uploadimg").in(accessTokenQuery)
+    .in(multipartBody[MediaForm])
+
+  val uploadNewsArticleEndpoint = baseOutEndpoint[AssetResponse].post.in("cgi-bin"/"media"/"uploadnews").in(accessTokenQuery)
+    .in(jsonBody[ArticleListAsset])
 
 }

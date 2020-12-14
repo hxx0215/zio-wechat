@@ -24,7 +24,6 @@ object CustomSupportAccount {
   implicit val decoder: Decoder[CustomSupportAccount] = Decoder.forProduct1("kf_account")(CustomSupportAccount.apply)
 }
 
-case class CustomSupportAvatarForm(media: Part[File])
 
 case class CustomSupportList(list: Seq[CustomSupportInfo])
 
